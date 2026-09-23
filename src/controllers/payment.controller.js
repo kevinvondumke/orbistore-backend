@@ -1,104 +1,39 @@
-import Stripe from 'stripe';
-import Order from '../models/order.model.js';
+import { stripe } from '../services/stripe.service.js';
+import { env } from '../config/env.js';
+import { createOrderPayment } from '../services/payment.service.js';
+import { applyPaymentEvent } from '../services/webhook.service.js';
+import { BadRequestError } from '../utils/errors.js';
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
-
-export const createPaymentIntent = async (req, res) => {
-    try {
-        const { orderId } = req.body;
-
-        console.log('Order ID received for payment intent: ', orderId);
-
-        const order = await Order.findById(orderId);
-        if (!order) {
-            return res.status(400).json({ message: 'Order not found.' });
-        } else {
-            console.log('Order found for payment intent: ', order._id);
-        }
-
-        const paymentIntent = await stripe.paymentIntents.create({
-            amount: order.total * 100,
-            currency: 'usd',
-        });
-
-        console.log('Stripe payment intent created: ', paymentIntent.id);
-
-        order.paymentIntentId = paymentIntent.id;
-        await order.save();
-
-        res.json({
-            clientSecret: paymentIntent.client_secret,
-            paymentIntentId: paymentIntent.id,
-        });
-    } catch (error) {
-        res.status(500).json({ message: error.message });
+// CREATE PAYMENT INTENT FOR ORDER (USER ONLY) + STRIPE WEBHOOK
+/** @type {import('express').RequestHandler} */
+export const createPaymentIntent = async (req, res, next) => {
+    try { 
+        return res.json(
+            await createOrderPayment(req.body.orderId, req.user._id, stripe)
+        ); 
+    } catch (error) { 
+        next(error); 
     }
 };
 
-// STRIPE WEBHOOK TO HANDLE PAYMENT INTENT
-export const stripeWebhook = async (req, res) => {
+// STRIPE WEBHOOK FOR PAYMENT EVENTS (STRIPE ONLY) + APPLY PAYMENT STATUS
+/** @type {import('express').RequestHandler} */
+export const stripeWebhook = async (req, res, next) => {
     let event;
-
     try {
-        const signature = req.headers['stripe-signature'];
-
         event = stripe.webhooks.constructEvent(
-            req.body,
-            signature,
-            process.env.STRIPE_WEBHOOK_SECRET
+            req.body, 
+            req.get('stripe-signature'), 
+            env.STRIPE_WEBHOOK_SECRET
         );
+    } catch {
+        return next(new BadRequestError('Invalid webhook signature'));
+    }
+    try {
+        await applyPaymentEvent(event);
+        return res.json({ received: true });
     } catch (error) {
-        console.log(`Webhook signature verification failed: ${error.message}`);
-        return res.status(400).send(`Webhook Error: ${error.message}`);
+        // A non-2xx response makes Stripe retry. Never acknowledge a lost DB update.
+        next(error);
     }
-
-    // PAYMENT SUCCEEDED
-    if (event.type === 'payment_intent.succeeded') {
-        console.log('Payment succeeded webhook received');
-        const intent = event.data.object;
-
-        try {
-            const updated = await Order.findOneAndUpdate(
-                { paymentIntentId: intent.id },
-                { paymentStatus: 'paid' },
-                { returnDocument: 'after' }
-            );
-
-            if (updated) {
-                console.log('Order updated to PAID: ', updated._id);
-                console.log('With intent ID: ', intent.id);
-            } else {
-                console.error('Order not found with paymentIntentId: ', intent.id);
-            }
-        } catch (error) {
-            console.error('Error updating order payment status: ', error);
-        }
-
-        console.log('Order ID updated to paid from webhook: ', intent.id);
-    }
-
-    // PAYMENT FAILED
-    if (event.type === 'payment_intent.payment_failed') {
-        console.log('Payment failed webhook not received');
-        const intent = event.data.object;
-
-        try {
-            const updatedOrder = await Order.findOneAndUpdate(
-                { paymentIntentId: intent.id },
-                { paymentStatus: 'failed' },
-                { returnDocument: 'after' }
-            );
-
-            if (updatedOrder) {
-                console.log('Order updated to FAILED: ', updatedOrder._id);
-                console.log('With intent ID: ', intent.id);
-            } else {
-                console.error('Order not found with paymentIntentId: ', intent.id);
-            }
-        } catch (error) {
-            console.error('Error updating order payment status: ', error);
-        }
-    }
-
-    res.json({ received: true });
 };

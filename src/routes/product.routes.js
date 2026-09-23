@@ -1,14 +1,13 @@
-import express from 'express';
-import { authenticate } from '../middlewares/auth.middleware.js';
+import { Router } from 'express';
+import { authenticate, admin } from '../middlewares/auth.middleware.js';
 import { getProducts, getProduct, createProduct, updateProduct, deleteProduct } from '../controllers/product.controller.js';
-import { admin } from '../middlewares/auth.middleware.js';
-
-const router = express.Router();
-
-router.get('/', getProducts);
-router.get('/:id', getProduct);
-router.post('/', authenticate, admin, createProduct);
-router.put('/:id', authenticate, admin, updateProduct);
-router.delete('/:id', authenticate, admin, deleteProduct);
-
+import { validateRequest } from '../middlewares/validate.js';
+import { createProductSchema, updateProductSchema } from '../schemas/product.schema.js';
+import { idParamsSchema, paginationSchema } from '../schemas/common.schema.js';
+const router = Router();
+router.get('/', validateRequest(paginationSchema, 'query'), getProducts);
+router.get('/:id', validateRequest(idParamsSchema, 'params'), getProduct);
+router.post('/', authenticate, admin, validateRequest(createProductSchema), createProduct);
+router.put('/:id', authenticate, admin, validateRequest(idParamsSchema, 'params'), validateRequest(updateProductSchema), updateProduct);
+router.delete('/:id', authenticate, admin, validateRequest(idParamsSchema, 'params'), deleteProduct);
 export default router;

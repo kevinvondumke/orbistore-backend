@@ -1,13 +1,13 @@
-import express from 'express';
-import { authenticate } from '../middlewares/auth.middleware.js';
-import { createOrder, getUserOrders, getAllOrders, updateOrderStatus } from '../controllers/order.controller.js';
-import { admin } from '../middlewares/auth.middleware.js';
-
-const router = express.Router();
-
-router.post('/', authenticate, createOrder);
-router.get('/myorders', authenticate, getUserOrders);
-router.get('/', authenticate, admin, getAllOrders);
-router.put('/:id', authenticate, admin, updateOrderStatus);
-
+import { Router } from 'express';
+import { authenticate, admin } from '../middlewares/auth.middleware.js';
+import { createOrder, getUserOrders, getAllOrders, updateOrderStatus, cancelOrder } from '../controllers/order.controller.js';
+import { validateRequest } from '../middlewares/validate.js';
+import { createOrderSchema, updateOrderStatusSchema } from '../schemas/order.schema.js';
+import { idParamsSchema, paginationSchema } from '../schemas/common.schema.js';
+const router = Router();
+router.post('/', authenticate, validateRequest(createOrderSchema), createOrder);
+router.get('/myorders', authenticate, validateRequest(paginationSchema, 'query'), getUserOrders);
+router.get('/', authenticate, admin, validateRequest(paginationSchema, 'query'), getAllOrders);
+router.put('/:id', authenticate, admin, validateRequest(idParamsSchema, 'params'), validateRequest(updateOrderStatusSchema), updateOrderStatus);
+router.post('/:id/cancel', authenticate, validateRequest(idParamsSchema, 'params'), cancelOrder);
 export default router;

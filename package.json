@@ -1,7 +1,7 @@
 {
   "name": "orbistore-backend",
   "version": "1.0.0",
-  "description": "Backend API for Orbistore - built with Node.js, Express.js, mongoDB, Mongoose, JWT authentication, Stripe payments, and Cloudinary integration.",
+  "description": "Orbistore backend API with Express, MongoDB, Zod validation, JWT authentication and Stripe payments.",
   "keywords": [
     "orbistore",
     "backend",
@@ -18,10 +18,16 @@
   "license": "MIT",
   "author": "Kevin Duncke",
   "type": "module",
-  "main": "server.js",
+  "main": "src/server.js",
   "scripts": {
     "dev": "nodemon src/server.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "node --test test/*.test.js",
+    "start": "node src/server.js",
+    "lint": "eslint src test integration scripts eslint.config.js",
+    "typecheck": "tsc -p jsconfig.json",
+    "check": "npm run lint && npm run typecheck && npm test",
+    "test:integration": "node scripts/test-integration.js",
+    "db:emails": "node scripts/emails.js"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",
@@ -30,12 +36,29 @@
     "cors": "^2.8.6",
     "dotenv": "^17.3.1",
     "express": "^5.2.1",
+    "express-rate-limit": "^8.7.0",
+    "helmet": "^8.3.0",
     "jsonwebtoken": "^9.0.3",
     "mongoose": "^9.2.1",
     "morgan": "^1.10.1",
-    "stripe": "^20.3.1"
+    "stripe": "^20.3.1",
+    "winston": "^3.19.0",
+    "zod": "^4.6.5"
   },
   "devDependencies": {
-    "nodemon": "^3.1.11"
+    "@eslint/js": "^10.0.1",
+    "@types/cookie-parser": "^1.4.10",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/morgan": "^1.9.10",
+    "@types/node": "^22.20.4",
+    "eslint": "^10.11.0",
+    "mongodb-memory-server": "^11.3.0",
+    "nodemon": "^3.1.11",
+    "typescript": "^7.0.2"
+  },
+  "engines": {
+    "node": ">=22.19.0"
   }
 }

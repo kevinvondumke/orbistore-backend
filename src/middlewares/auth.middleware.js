@@ -1,25 +1,28 @@
-import jwt from 'jsonwebtoken';
+import { verifyToken } from '../services/jwt.service.js';
+import { COOKIE_NAME } from '../utils/cookies.js';
+import { UnauthorizedError, ForbiddenError } from '../utils/errors.js';
 import User from '../models/user.model.js';
 
-// AUTHENTICATION MIDD TO CHECK IF USER IS LOGGED IN
+/** @type {import('express').RequestHandler} */
 export const authenticate = async (req, res, next) => {
     try {
-        const token = req.cookies.token;
-        if (!token) {
-            return res.status(401).json({ message: 'Not Authorized' });
-        }
-        const decoded = jwt.verify(token, process.env.JWT_SECRET);
-        req.user = await User.findById(decoded.id).select('-password');
+        const token = req.cookies?.[COOKIE_NAME];
+        if (!token) throw new UnauthorizedError('No token provided, authorization denied');
+        const decoded = verifyToken(token);
+        if (typeof decoded !== 'object' || !decoded || typeof decoded.id !== 'string' ||
+            !/^[a-fA-F0-9]{24}$/.test(decoded.id)) throw new UnauthorizedError('Invalid token payload');
+        const user = await User.findById(decoded.id).select('-password');
+        if (!user) throw new UnauthorizedError('User not found');
+        req.user = user;
         next();
     } catch (error) {
-        res.status(401).json({ message: 'Invalid Token' });
+        next(error);
     }
 };
 
-// ADMIN MIDD TO CHECK ONLY ADMIN ACCESS
+/** @type {import('express').RequestHandler} */
 export const admin = (req, res, next) => {
-    if (req.user.role !== 'admin') {
-        return res.status(403).json({ message: 'Admin access required' });
-    }
+    if (!req.user) return next(new UnauthorizedError());
+    if (req.user.role !== 'admin') return next(new ForbiddenError('Admin access required'));
     next();
 };
