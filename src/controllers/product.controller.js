@@ -5,15 +5,12 @@ import { BadRequestError, NotFoundError } from '../utils/errors.js';
 /** @type {import('express').RequestHandler} */
 export const getProducts = async (req, res, next) => {
     try {
-        const { page, limit } = res.locals.query;
-        return res.json(
-            await Product
-                .find()
-                .sort({ createdAt: -1, _id: -1 })
-                .skip((page - 1) * limit)
-                .limit(limit)
-        );
+        const products = await Product.find({
+            tenantId: req.tenantId,
+            isActive: true
+        }).populate('categoryId', 'name slug');
 
+        return res.json(products);
     } catch (error) {
         next(error);
     }

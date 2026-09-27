@@ -1,7 +1,9 @@
 import mongoose from 'mongoose';
 import { env } from './env.js';
+import Tenant from '../models/tenant.model.js';
 import User from '../models/user.model.js';
 import Product from '../models/product.model.js';
+import Category from '../models/category.model.js';
 import Order from '../models/order.model.js';
 import RateLimit from '../models/rate-limit.model.js';
 
@@ -51,7 +53,7 @@ export default async function connectDB() {
     await verifyUserEmails();
 
     // CREATE COLLECTIONS AND INDEXES FOR ALL MODELS
-    for (const model of [User, Product, Order, RateLimit]) {
+    for (const model of [Tenant, User, Product, Category, Order, RateLimit]) {
         await model.createCollection();
         await model.createIndexes();
     }

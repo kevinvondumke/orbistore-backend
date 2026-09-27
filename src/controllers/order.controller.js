@@ -1,20 +1,19 @@
 import Order from '../models/order.model.js';
-import { createPricedOrder } from '../services/order.service.js';
 import { cancelReservedOrder } from '../services/reservation.service.js';
 import { stripe } from '../services/stripe.service.js';
-import { env } from '../config/env.js';
 import { ConflictError, NotFoundError } from '../utils/errors.js';
 
 // CREATE ORDER AND RESERVE ITEMS (USER ONLY) + PAYMENT INTENT
 /** @type {import('express').RequestHandler} */
 export const createOrder = async (req, res, next) => {
     try {
-        return res.status(201).json(
-            await createPricedOrder(
-                req.user._id,
-                req.body.items,
-                env.RESERVATION_MINUTES)
-        );
+        const order = await Order.create({
+            ...req.body,
+            tenantId: req.tenantId,
+            userId: req.user._id
+        });
+
+        return res.status(201).json(order);
     } catch (error) {
         next(error);
     }
@@ -58,7 +57,7 @@ export const getAllOrders = async (req, res, next) => {
 /** @type {import('express').RequestHandler} */
 export const updateOrderStatus = async (req, res, next) => {
     try {
-        
+
         // DEFINE PREVIOUS STATUS FOR VALID TRANSITIONS
         const previous = {
             processing: 'unfulfilled',
@@ -85,7 +84,7 @@ export const updateOrderStatus = async (req, res, next) => {
         if (!order) {
             const current = await Order.findById(req.params.id);
             if (!current) throw new NotFoundError('Order not found');
-            if (current.paymentStatus === 'paid' && current.fulfillmentStatus === req.body.fulfillmentStatus) return res.json(current);
+            if (current.paymentStatus === 'paid') return res.json(current);
 
             throw new ConflictError('Invalid fulfillment transition or unpaid order');
         }
@@ -102,7 +101,7 @@ export const cancelOrder = async (req, res, next) => {
     try {
         return res.json(
             await cancelReservedOrder(req.params.id, req.user._id, stripe)
-        ); 
+        );
     } catch (error) {
         next(error);
     }

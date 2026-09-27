@@ -14,9 +14,9 @@ export const authenticate = async (req, res, next) => {
         const user = await User.findById(decoded.id).select('-password');
         if (!user) throw new UnauthorizedError('User not found');
         req.user = user;
-        next();
+        return next();
     } catch (error) {
-        next(error);
+        return next(error);
     }
 };
 
