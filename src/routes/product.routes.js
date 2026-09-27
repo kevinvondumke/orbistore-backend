@@ -4,10 +4,13 @@ import { getProducts, getProduct, createProduct, updateProduct, deleteProduct } 
 import { validateRequest } from '../middlewares/validate.js';
 import { createProductSchema, updateProductSchema } from '../schemas/product.schema.js';
 import { idParamsSchema, paginationSchema } from '../schemas/common.schema.js';
+
 const router = Router();
+
 router.get('/', validateRequest(paginationSchema, 'query'), getProducts);
 router.get('/:id', validateRequest(idParamsSchema, 'params'), getProduct);
 router.post('/', authenticate, admin, validateRequest(createProductSchema), createProduct);
 router.put('/:id', authenticate, admin, validateRequest(idParamsSchema, 'params'), validateRequest(updateProductSchema), updateProduct);
 router.delete('/:id', authenticate, admin, validateRequest(idParamsSchema, 'params'), deleteProduct);
+
 export default router;

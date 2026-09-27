@@ -32,6 +32,7 @@
   "dependencies": {
     "bcryptjs": "^3.0.3",
     "body-parser": "^2.2.2",
+    "cloudinary": "^2.11.0",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.6",
     "dotenv": "^17.3.1",
@@ -41,6 +42,7 @@
     "jsonwebtoken": "^9.0.3",
     "mongoose": "^9.2.1",
     "morgan": "^1.10.1",
+    "multer": "^2.4.0",
     "stripe": "^20.3.1",
     "winston": "^3.19.0",
     "zod": "^4.6.5"
@@ -52,6 +54,7 @@
     "@types/express": "^5.0.6",
     "@types/jsonwebtoken": "^9.0.10",
     "@types/morgan": "^1.9.10",
+    "@types/multer": "^2.2.0",
     "@types/node": "^22.20.4",
     "eslint": "^10.11.0",
     "mongodb-memory-server": "^11.3.0",

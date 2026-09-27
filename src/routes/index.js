@@ -2,6 +2,7 @@ import authRoutes from './auth.routes.js';
 import productRoutes from './product.routes.js';
 import orderRoutes from './order.routes.js';
 import paymentRoutes from './payment.routes.js';
+import uploadRoutes from './upload.routes.js';
 
 // REGISTER ALL ROUTES
 export const registerRoutes = (app) => {
@@ -9,4 +10,5 @@ export const registerRoutes = (app) => {
     app.use('/api/products', productRoutes);
     app.use('/api/orders', orderRoutes);
     app.use('/api/payments', paymentRoutes);
+    app.use('/api/uploads', uploadRoutes);
 }

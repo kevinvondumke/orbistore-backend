@@ -6,7 +6,7 @@ import { registerSchema, loginSchema } from '../schemas/auth.schema.js';
 
 const router = Router();
 
-// REGOSTER ROUTE
+// REGISTER ROUTE
 router.post('/register', registerRateLimiter, validateRequest(registerSchema), register);
 
 // LOGIN ROUTE

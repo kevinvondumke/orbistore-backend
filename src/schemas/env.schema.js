@@ -28,6 +28,11 @@ export const envSchema = z.object({
     TRUST_PROXY: z.string().default(''),
     RATE_LIMIT_STORE: z.enum(['memory', 'mongo']).default('mongo'),
     RESERVATION_MINUTES: positiveInteger(30, 120),
+
+    // CLOUDINARY KEYS
+    CLOUDINARY_CLOUD_NAME: z.string().min(1, 'Cloudinary Cloud Name is required'),
+    CLOUDINARY_API_KEY: z.string().min(1, 'Cloudinary API Key is required'),
+    CLOUDINARY_API_SECRET: z.string().min(1, 'Cloudinary API Secret is required'),
 }).superRefine((value, context) => {
 
     // CUSTOM VALIDATION FOR ENVIRONMENT VARIABLES
