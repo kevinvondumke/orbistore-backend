@@ -21,32 +21,33 @@ app.disable('x-powered-by');
 if (env.TRUST_PROXY) app.set('trust proxy', env.TRUST_PROXY.split(',').map(value => value.trim()));
 
 // HELMET SECURITY HEADERS AND CORS CONFIGURATION
-app.use(
-    helmet({
-        // HTTP STRICT TRANSPORT SECURITY (HSTS)
-        strictTransportSecurity: {
-            maxAge: 31536000, // 1 year
-            includeSubDomains: true,
-            preload: true
-        },
-        // CONTENT SECURITY POLICY (CSP)
-        contentSecurityPolicy: {
-            useDefaults: true,
-            directives: {
-                'defaultSrc': ["'self'"],
-                'scriptSrc': ["'self'", "https://trusted-cdn.com", "https://js.stripe.com"],
-                'styleSrc': ["'self'", "'unsafe-inline'"],
-                'upgrade-insecure-requests': [],
-                'block-all-mixed-content': []
-            }
-        },
-        // X-FRAME-OPTIONS HEADER
-        xFrameOptions: {
-            action: 'deny'
+/** @type {import('express').RequestHandler} */
+const securityHeaders = helmet({
+    // HTTP STRICT TRANSPORT SECURITY (HSTS)
+    strictTransportSecurity: {
+        maxAge: 31536000, // 1 year
+        includeSubDomains: true,
+        preload: true
+    },
+    // CONTENT SECURITY POLICY (CSP)
+    contentSecurityPolicy: {
+        useDefaults: true,
+        directives: {
+            'defaultSrc': ["'self'"],
+            'scriptSrc': ["'self'", "https://trusted-cdn.com", "https://js.stripe.com"],
+            'styleSrc': ["'self'", "'unsafe-inline'"],
+            'upgrade-insecure-requests': [],
+            'block-all-mixed-content': []
         }
-    }),
-    cors({ origin: env.CLIENT_URL, credentials: true })
-);
+    },
+    // X-FRAME-OPTIONS HEADER
+    xFrameOptions: {
+        action: 'deny'
+    }
+});
+
+app.use(securityHeaders);
+app.use(cors({ origin: env.CLIENT_URL, credentials: true }));
 
 // STRIPE WEBHOOK ROUTE + RAW BODY PARSING
 app.post('/api/payments/webhook', express.raw(

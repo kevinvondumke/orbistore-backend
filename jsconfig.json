@@ -14,6 +14,9 @@
     "strict": false,
     "maxNodeModuleJsDepth": 0
   },
+  "typeAcquisition": {
+    "enable": false
+  },
   "include": [
     "src/**/*.js",
     "src/**/*.d.ts"
