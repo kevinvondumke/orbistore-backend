@@ -1,6 +1,8 @@
 import mongoose from 'mongoose';
 
 const tenantSchema = new mongoose.Schema({
+
+    // IDENTITY
     shopName: {
         type: String,
         required: true,
@@ -38,15 +40,21 @@ const tenantSchema = new mongoose.Schema({
         required: true
     },
 
-    // STRIPE ACCOUNT AND BILLING INFO
+    // BILLING AND PLAN
+    plan: {
+        type: String,
+        enum: ['free', 'premium'],
+        default: 'free'
+    },    
+    commissionRate: {
+        type: Number,
+        default: 0.02,
+    },
+
+    // STRIPE ACCOUNT
     stripeAccountId: {
         type: String,
         default: null
-    },
-    plan: {
-        type: String,
-        enum: ['free', 'pro'],
-        default: 'free'
     },
 
     // BRANDING AND CUSTOMIZATION
@@ -54,6 +62,12 @@ const tenantSchema = new mongoose.Schema({
         type: String,
         default: '#2563eb'
     },
+    accentColor: {
+        type: String,
+        default: '#ffffff'
+    },
+
+    // STATUS
     isActive: {
         type: Boolean,
         default: true
@@ -68,6 +82,12 @@ tenantSchema.index(
 tenantSchema.index(
     { customDomain: 1 },
     { unique: true, sparse: true }
+);
+tenantSchema.index(
+    { ownerId: 1 }
+);
+tenantSchema.index(
+    { isActive: 1 }
 );
 
 export default mongoose.model('Tenant', tenantSchema);

@@ -23,6 +23,9 @@ const productSchema = new mongoose.Schema({
         type: String,
         required: true
     },
+    sku: {
+        type: String
+    },
     description: String,
     price: {
         type: Number,
@@ -37,9 +40,11 @@ const productSchema = new mongoose.Schema({
             }
         }
     },
-    compareAtPrice: {
-        type: Number,
-        default: null
+    compareAtPrice: Number,
+    currency: {
+        type: String,
+        default: 'USD',
+        uppercase: true
     },
     pricingVersion: {
         type: Number,
@@ -55,8 +60,10 @@ const productSchema = new mongoose.Schema({
     images: [{ type: String }],
     isActive: {
         type: Boolean,
-        default: true
-    }
+        default: true,
+        index: true
+    },
+    tags: [String],
 }, { timestamps: true });
 
 // INDEXES
@@ -65,7 +72,13 @@ productSchema.index(
     { unique: true }
 );
 productSchema.index(
+    { tenantId: 1, sku: 1 }, { unique: true, sparse: true }
+);
+productSchema.index(
     { tenantId: 1, isActive: 1, price: 1 }
+);
+productSchema.index(
+    { tenantId: 1, name: 'text', description: 'text' }
 );
 
 export default mongoose.model('Product', productSchema);

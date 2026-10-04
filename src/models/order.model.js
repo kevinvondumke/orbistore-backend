@@ -14,10 +14,6 @@ const orderSchema = new mongoose.Schema({
         required: true,
         index: true
     },
-    user: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'User'
-    },
     orderNumber: {
         type: String,
         required: true,
@@ -26,6 +22,10 @@ const orderSchema = new mongoose.Schema({
     totalMinor: { 
         type: Number, 
         required: true 
+    },
+    platformFee: {
+        type: Number,
+        default: 0
     },
     currency: {
         type: String,
@@ -54,14 +54,13 @@ const orderSchema = new mongoose.Schema({
         },
         image: String
     }],
-
-    total: {
+    totalAmount: {
         type: Number,
         required: true
     },
     paymentStatus: {
         type: String,
-        enum: ['pending', 'paid', 'failed', 'canceled', 'canceling'],
+        enum: ['pending', 'paid', 'failed', 'canceled', 'refunded'],
         default: 'pending'
     },
     paymentIntentId: {

@@ -34,6 +34,11 @@ const userSchema = new mongoose.Schema({
         ref: 'Tenant',
         default: null
     },
+    tenantRole: {
+        type: String,
+        enum: ['owner', 'manager', 'staff'],
+        default: null
+    },
 
     // ADDITIONAL INFORMATION
     address: {
@@ -42,14 +47,27 @@ const userSchema = new mongoose.Schema({
         state: String,
         zip: String,
         country: String
+    },
+    avatarUrl: String,
+    isActive: {
+        type: Boolean,
+        default: true
     }
 }, { timestamps: true });
 
 // PASSWORD HASHING HOOK
-userSchema.pre('save', async function () {
-    if (!this.isModified('password')) return;
+userSchema.pre(
+    'save',
+    /** @this {import('mongoose').HydratedDocument<import('mongoose').InferSchemaType<typeof userSchema>>} */
+    async function () {
+        if (!this.isModified('password')) return;
 
-    this.password = await bcrypt.hash(this.password, 10);
-});
+        this.password = await bcrypt.hash(this.password, 10);
+    }
+);
+
+// INDEXES
+userSchema.index({ email: 1 }, { unique: true });
+userSchema.index({ tenantId: 1 });
 
 export default mongoose.model('User', userSchema);

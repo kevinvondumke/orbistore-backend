@@ -74,6 +74,9 @@ export const login = async (req, res, next) => {
         const token = signToken({
             id: user._id,
             email: user.email,
+            platformRole: user.role,
+            tenantId: user.tenantId,
+            tenantRole: user.tenantRole
         });
 
         // SET AUTH COOKIE WITH USER JWT TOKEN AND INFO

@@ -1,14 +1,18 @@
 import Product from '../models/product.model.js';
-import { BadRequestError, NotFoundError } from '../utils/errors.js';
+import { BadRequestError, NotFoundError, ForbiddenError } from '../utils/errors.js';
 
-// GET ALL PRODUCTS (PUBLIC) + PAGINATION
+// GET ALL PRODUCTS (PUBLIC) + PAGINATION | (SCOPED TO CURRENT TENANT)
 /** @type {import('express').RequestHandler} */
 export const getProducts = async (req, res, next) => {
     try {
-        const products = await Product.find({
-            tenantId: req.tenantId,
-            isActive: true
-        }).populate('categoryId', 'name slug');
+        const query = { isActive: true };
+        if (req.tenantId) {
+            query.tenantId = req.tenantId;
+        }
+
+        const products = await Product.find(query)
+            .populate('categoryId', 'name slug')
+            .sort({ createdAt: -1 });
 
         return res.json(products);
     } catch (error) {
@@ -20,21 +24,32 @@ export const getProducts = async (req, res, next) => {
 /** @type {import('express').RequestHandler} */
 export const getProduct = async (req, res, next) => {
     try {
-        const product = await Product.findById(req.params.id);
-        if (!product) throw new NotFoundError('Product not found');
+        const query = { _id: req.params.id };
+        if (req.tenantId) {
+            query.tenantId = req.tenantId;
+        }
+
+        const product = await Product.findOne(query)
+            .populate('categoryId', 'name slug');
+        if (!product) throw new NotFoundError('Product not found in this store.');
+
         return res.json(product);
     } catch (error) {
         next(error);
     }
 };
 
-// CREATE PRODUCT (ADMIN ONLY) + VALIDATE INPUT
+// CREATE PRODUCT (MERCHAN || ADMIN)
 /** @type {import('express').RequestHandler} */
 export const createProduct = async (req, res, next) => {
     try {
-        return res.status(201).json(
-            await Product.create(req.body)
-        );
+        const tenantId = req.tenantId || req.user?.tenantId;
+        if (!tenantId && req.user.role !== 'admin') {
+            throw new BadRequestError('Tenant context is required to create products.');
+        }
+
+        const product = await Product.create({ ...req.body, tenantId });
+        return res.status(201).json(product);
     } catch (error) {
         next(error);
     }
@@ -44,13 +59,18 @@ export const createProduct = async (req, res, next) => {
 /** @type {import('express').RequestHandler} */
 export const updateProduct = async (req, res, next) => {
     try {
-        const product = await Product
-            .findByIdAndUpdate(
-                req.params.id,
-                { $set: req.body },
-                { returnDocument: 'after', runValidators: true }
-            );
-        if (!product) throw new NotFoundError('Product not found');
+        const query = { _id: req.params.id };
+        if (req.user.role !== 'admin') {
+            query.tenantId = req.tenantId || req.user?.tenantId;
+        }
+
+        const product = await Product.findOneAndUpdate(
+            query,
+            { $set: req.body },
+            { returnDocument: 'after', runValidators: true }
+        );
+
+        if (!product) throw new NotFoundError('Product not found or unathorized.');
         return res.json(product);
     } catch (error) {
         next(error);
@@ -66,10 +86,15 @@ export const deleteProduct = async (req, res, next) => {
             throw new BadRequestError('Invalid product ID');
         }
 
-        const product = await Product.findByIdAndDelete(id);
-        if (!product) {
-            throw new NotFoundError('Product not found');
+        const query = { _id: id };
+        if (req.user.role !== 'admin') {
+            query.tenantId = req.tenantId || req.user?.tenantId;
         }
-        return res.json({ message: 'Product Deleted' });
+
+        const product = await Product.findOneAndDelete(query);
+        if (!product) {
+            throw new NotFoundError('Product not found or unauthroized.');
+        }
+        return res.json({ message: 'Product Deleted Successfully.' });
     } catch (error) { return next(error); }
 };

@@ -16,7 +16,17 @@ const categorySchema = new mongoose.Schema({
         type: String,
         required: true
     },
-    description: String
+    description: String,
+    imageUrl: String,
+    parentId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Category',
+        default: null
+    },
+    sortOrder: {
+        type: Number,
+        default: 0
+    }
 }, { timestamps: true });
 
 // INDEXES
