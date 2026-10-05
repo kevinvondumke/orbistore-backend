@@ -1,4 +1,5 @@
 import Order from '../models/order.model.js';
+import { createPricedOrder } from '../services/order.service.js';
 import { cancelReservedOrder } from '../services/reservation.service.js';
 import { stripe } from '../services/stripe.service.js';
 import { ConflictError, NotFoundError } from '../utils/errors.js';
@@ -7,12 +8,7 @@ import { ConflictError, NotFoundError } from '../utils/errors.js';
 /** @type {import('express').RequestHandler} */
 export const createOrder = async (req, res, next) => {
     try {
-        const order = await Order.create({
-            ...req.body,
-            tenantId: req.tenantId,
-            userId: req.user._id
-        });
-
+        const order = await createPricedOrder(req.user._id, req.body.items);
         return res.status(201).json(order);
     } catch (error) {
         next(error);
@@ -23,14 +19,22 @@ export const createOrder = async (req, res, next) => {
 /** @type {import('express').RequestHandler} */
 export const getUserOrders = async (req, res, next) => {
     try {
-        const { page, limit } = res.locals.query;
-        return res.json(
-            await Order
-                .find({ user: req.user._id })
-                .sort({ createdAt: -1, _id: -1 })
-                .skip((page - 1) * limit)
-                .limit(limit)
-        );
+        const { page = 1, limit = 20 } = res.locals.query || {};
+        const query = {
+            $or: [{ userId: req.user._id }, { user: req.user._id }]
+        };
+
+        if (req.tenantId) {
+            query.tenantId = req.tenantId;
+        }
+
+        const orders = await Order
+            .find(query)
+            .sort({ createdAt: -1, _id: -1 })
+            .skip((page - 1) * limit)
+            .limit(limit);
+
+        return res.json(orders);
     } catch (error) {
         next(error);
     }
@@ -40,14 +44,24 @@ export const getUserOrders = async (req, res, next) => {
 /** @type {import('express').RequestHandler} */
 export const getAllOrders = async (req, res, next) => {
     try {
-        const { page, limit } = res.locals.query;
-        return res.json(
-            await Order
-                .find().populate('user', 'name email')
-                .sort({ createdAt: -1, _id: -1 })
-                .skip((page - 1) * limit)
-                .limit(limit)
-        );
+        const { page = 1, limit = 20 } = res.locals.query || {};
+
+        // SCOPE TO TENNAT FOR MERCHANTS || SUPER ADMIN SEES ALL
+        const query = {};
+        if (req.user.role === 'merchant') {
+            query.tenantId = req.tenantId || req.user.tenantId;
+        } else if (req.tenantId) {
+            query.tenantId = req.tenantId;
+        }
+
+        const orders = await Order
+            .find(query)
+            .populate('userId', 'name email')
+            .sort({ createdAt: -1, _id: -1 })
+            .skip((page - 1) * limit)
+            .limit(limit);
+
+        return res.json(orders);
     } catch (error) {
         next(error);
     }
@@ -57,7 +71,6 @@ export const getAllOrders = async (req, res, next) => {
 /** @type {import('express').RequestHandler} */
 export const updateOrderStatus = async (req, res, next) => {
     try {
-
         // DEFINE PREVIOUS STATUS FOR VALID TRANSITIONS
         const previous = {
             processing: 'unfulfilled',
@@ -65,21 +78,22 @@ export const updateOrderStatus = async (req, res, next) => {
             delivered: 'shipped'
         };
 
+        const query = /** @type {any} */ ({
+            _id: req.params.id,
+            paymentStatus: 'paid',
+            fulfillmentStatus: previous[req.body.fulfillmentStatus],
+        });
+
+        if (req.user.role !== 'admin') {
+            query.tenantId = req.tenantId || req.user.tenantId;
+        }
+
         // UPDATE ORDER STATUS IF VALID TRANSITION AND PAID
-        const order = await Order
-            .findOneAndUpdate(
-                {
-                    _id: req.params.id,
-                    paymentStatus: 'paid',
-                    fulfillmentStatus: previous[req.body.fulfillmentStatus],
-                },
-                {
-                    $set: {
-                        fulfillmentStatus: req.body.fulfillmentStatus
-                    }
-                },
-                { returnDocument: 'after', runValidators: true }
-            );
+        const order = await Order.findOneAndUpdate(
+            query,
+            { $set: { fulfillmentStatus: req.body.fulfillmentStatus } },
+            { returnDocument: 'after', runValidators: true }
+        );
 
         if (!order) {
             const current = await Order.findById(req.params.id);

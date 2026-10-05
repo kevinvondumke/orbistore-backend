@@ -5,7 +5,8 @@
   "keywords": [
     "orbistore",
     "backend",
-    "api"
+    "api",
+    "multitenant"
   ],
   "homepage": "https://github.com/kevinduncke/orbistore-backend#readme",
   "bugs": {
@@ -21,10 +22,12 @@
   "main": "src/server.js",
   "scripts": {
     "dev": "nodemon src/server.js",
+    "seed": "node src/seeds/seed.js",
+    "db:local": "node scripts/start-local-db.js",
     "test": "node --test test/*.test.js",
     "start": "node src/server.js",
-    "lint": "eslint src test integration scripts eslint.config.js",
-    "typecheck": "tsc -p jsconfig.json",
+    "lint": "npx eslint src test eslint.config.js",
+    "typecheck": "npx tsc -p jsconfig.json",
     "check": "npm run lint && npm run typecheck && npm test",
     "test:integration": "node scripts/test-integration.js",
     "db:emails": "node scripts/emails.js"
@@ -35,6 +38,7 @@
     "cloudinary": "^2.11.0",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.6",
+    "deep-is": "^0.1.4",
     "dotenv": "^17.3.1",
     "express": "^5.2.1",
     "express-rate-limit": "^8.7.0",

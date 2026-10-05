@@ -6,13 +6,15 @@ import { getTrustedAmount } from './payment.service.js';
 import { applyPaymentEvent } from './webhook.service.js';
 
 export async function cancelReservedOrder(orderId, userId, stripe) {
-    const ownership = userId ? { user: userId } : {};
+    const ownership = userId ? { $or: [{ userId }, { user: userId }] } : {};
     let order = await Order.findOne({ _id: orderId, ...ownership });
     if (!order) throw new NotFoundError('Order not found');
     if (order.paymentStatus === 'canceled') return order;
     if (order.paymentStatus === 'paid') throw new ConflictError('Paid orders cannot be canceled');
     if (order.pricingVersion !== 1) throw new ConflictError('Legacy order requires manual reconciliation');
+    
     // An in-flight/ambiguous intent creation must be reconciled before release.
+    const currency = (order.currency || 'usd').toLowerCase();
     if (order.paymentAttemptAt && !order.paymentIntentId) {
         if (Date.now() - order.paymentAttemptAt.getTime() > 23 * 3600000) {
             throw new ConflictError('Ambiguous payment requires operator reconciliation before releasing stock');
@@ -20,10 +22,13 @@ export async function cancelReservedOrder(orderId, userId, stripe) {
         // Replay the identical idempotent request while Stripe still retains its key.
         // This also recovers a crash after Stripe created the intent but before linking it.
         const intent = await stripe.paymentIntents.create({
-            amount: getTrustedAmount(order), currency: order.currency,
+            amount: getTrustedAmount(order), 
+            currency,
             metadata: { orderId: String(order._id) },
         }, { idempotencyKey: 'order:' + order._id + ':pricing:1' });
-        if (intent.amount !== order.totalMinor || intent.currency !== order.currency) throw new Error('Recovered payment mismatch');
+        if (intent.amount !== order.totalMinor || intent.currency.toLowerCase() !== currency) {
+            throw new Error('Recovered payment mismatch');
+        }
 
         const linked = await Order.findOneAndUpdate({
             _id: order._id, paymentStatus: { $in: ['pending', 'failed'] },
@@ -55,37 +60,48 @@ export async function cancelReservedOrder(orderId, userId, stripe) {
         }
     }
 
-    return mongoose.connection.transaction(async session => {
-
-        // MARK ORDER AS CANCELED AND RELEASE STOCK
+    // RELEASE STOCK TRANSACTIONALLY (with standalone fallback for local dev)
+    const releaseStock = async (session) => {
+        const opts = session ? { session, returnDocument: 'after', runValidators: true } : { returnDocument: 'after', runValidators: true };
         const canceled = await Order.findOneAndUpdate({
             _id: order._id, paymentStatus: 'canceling', stockReleasedAt: null,
-        }, { $set: { paymentStatus: 'canceled', stockReleasedAt: new Date() } },
-            { session, returnDocument: 'after', runValidators: true });
+        }, { $set: { paymentStatus: 'canceled', stockReleasedAt: new Date() } }, opts);
+
         if (!canceled) {
-            const current = await Order.findById(order._id).session(session);
+            const current = session ? await Order.findById(order._id).session(session) : await Order.findById(order._id);
             if (current?.paymentStatus === 'canceled') return current;
             throw new ConflictError('Order changed during cancellation');
         }
 
-        // LOOP THROUGH THE CANCELED ITEMS
+        // Loop through canceled items and restore stock
         for (const item of canceled.items) {
-            await Product.updateOne(
-                { _id: item.product },
-                { $inc: { stock: item.quantity } },
-                { session }
-            );
+            const prodId = item.productId || item.product;
+            if (prodId) {
+                const updateOpts = session ? { session } : {};
+                await Product.updateOne(
+                    { _id: prodId },
+                    { $inc: { stock: item.quantity } },
+                    updateOpts
+                );
+            }
         }
 
-
         return canceled;
-    }, { readPreference: 'primary' });
-}
+    };
 
+    try {
+        return await mongoose.connection.transaction(releaseStock, { readPreference: 'primary' });
+    } catch (err) {
+        // Graceful fallback if MongoDB is not running in replica set mode
+        if (err.message?.includes('replica set') || err.message?.includes('Transaction numbers')) {
+            return await releaseStock(null);
+        }
+        throw err;
+    }
+}
 
 // EXPIRE RESERVATIONS FOR ORDERS THAT HAVE NOT BEEN PAID IN TIME
 export async function expireReservations(stripe) {
-
     // FIND ORDERS THAT ARE PENDING PAYMENT AND HAVE EXPIRED
     const orders = await Order.find({
         pricingVersion: 1,

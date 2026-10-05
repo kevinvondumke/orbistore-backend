@@ -13,7 +13,6 @@ const tenantSchema = new mongoose.Schema({
     subdomain: {
         type: String,
         required: true,
-        unique: true,
         trim: true,
         lowercase: true,
         match: /^[a-z0-9]+(?:-[a-z0-9]+)*$/,
@@ -22,8 +21,6 @@ const tenantSchema = new mongoose.Schema({
     },
     customDomain: {
         type: String,
-        unique: true,
-        sparse: true,
         trim: true,
         lowercase: true,
         match: /^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}$/,
@@ -43,7 +40,7 @@ const tenantSchema = new mongoose.Schema({
     // BILLING AND PLAN
     plan: {
         type: String,
-        enum: ['free', 'premium'],
+        enum: ['free', 'pro', 'premium'],
         default: 'free'
     },    
     commissionRate: {

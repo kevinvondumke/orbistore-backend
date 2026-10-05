@@ -31,18 +31,40 @@ export const authenticate = async (req, res, next) => {
 /**
  * Authorize specific roles (e.g. authorize('merchant', 'admin'))
  * @param  {...string} roles 
+ * @returns {import('express').RequestHandler}
  */
-export const authorize = (...roles) => {
-    return (req, res, next) => {
-        if (!req.user) return next(new UnauthorizedError());
-        if (!roles.includes(req.user.role)) {
-            return next(new ForbiddenError(`Access denied. Requires one of: ${roles.join(', ')}`));
-        }
-        next();
-    };
+export const authorize = (...roles) => (req, res, next) => {
+    if (!req.user) return next(new UnauthorizedError());
+    if (!roles.includes(req.user.role)) {
+        return next(new ForbiddenError(`Access denied: Requires role [${roles.join(', ')}]`));
+    }
+    next();
 };
 
-// Convenience role guards
-export const requireShopper = authorize('shopper', 'merchant', 'admin');
-export const requireTenantAdmin = authorize('merchant', 'admin');
-export const requireSuperAdmin = authorize('admin');
+/** @type {import('express').RequestHandler} */
+export const requireShopper = (req, res, next) => {
+    if (!req.user) return next(new UnauthorizedError());
+    // All authenticated users (shopper, merchant, admin) can perform shopper actions
+    next();
+};
+
+/** @type {import('express').RequestHandler} */
+export const requireTenantAdmin = (req, res, next) => {
+    if (!req.user) return next(new UnauthorizedError());
+    if (req.user.role !== 'merchant' && req.user.role !== 'admin') {
+        return next(new ForbiddenError('Merchant or Admin access required'));
+    }
+    next();
+};
+
+/** @type {import('express').RequestHandler} */
+export const requireSuperAdmin = (req, res, next) => {
+    if (!req.user) return next(new UnauthorizedError());
+    if (req.user.role !== 'admin') {
+        return next(new ForbiddenError('Superadmin access required'));
+    }
+    next();
+};
+
+/** Backwards-compatible alias for tenant administration */
+export const admin = requireTenantAdmin;

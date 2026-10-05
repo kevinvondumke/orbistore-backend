@@ -22,7 +22,10 @@ export async function applyPaymentEvent(event) {
 
     // VERIFY PAYMENT AMOUNT AND CURRENCY MATCHES ORDER
     const amount = getTrustedAmount(order);
-    if (intent.amount !== amount || intent.currency !== order.currency ||
+    const currency = (order.currency || 'usd').toLowerCase();
+    const intentCurrency = (intent.currency || '').toLowerCase();
+
+    if (intent.amount !== amount || intentCurrency !== currency ||
         (event.type === 'payment_intent.succeeded' && intent.amount_received !== amount)) {
         throw new Error('Webhook payment amount or currency mismatch');
     }

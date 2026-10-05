@@ -1,5 +1,5 @@
 import User from '../models/user.model.js';
-import { comparePassword, hashPassword } from '../services/auth.service.js';
+import { comparePassword } from '../services/auth.service.js';
 import { signToken } from '../services/jwt.service.js';
 import { ConflictError, UnauthorizedError } from '../utils/errors.js';
 import { COOKIE_NAME, getAuthCookieOptions, getClearCookieOptions } from '../utils/cookies.js';
@@ -28,9 +28,15 @@ export const register = async (req, res, next) => {
             throw new ConflictError('Email already exists.');
         }
 
-        // HASH PASSWORD AND CREATE NEW USER
-        const hashed = await hashPassword(password);
-        const user = await User.create({ name, email, password: hashed, avatarUrl: avatarUrl ?? '' });
+        // CREATE NEW USER | PRE-SAVE HOOK WILL AUTO HASH PASSWORD (user.model.js)
+        const user = await User.create({
+            name,
+            email,
+            password,
+            avatarUrl: avatarUrl ?? '',
+            role: 'shopper',
+            tenantId: req.tenantId || null
+        });
 
         res.cookie(
             COOKIE_NAME,
@@ -44,6 +50,7 @@ export const register = async (req, res, next) => {
                 email: user.email,
                 name: user.name,
                 role: user.role,
+                tenantId: user.tenantId,
                 avatarUrl: user.avatarUrl,
             },
         });
@@ -74,9 +81,6 @@ export const login = async (req, res, next) => {
         const token = signToken({
             id: user._id,
             email: user.email,
-            platformRole: user.role,
-            tenantId: user.tenantId,
-            tenantRole: user.tenantRole
         });
 
         // SET AUTH COOKIE WITH USER JWT TOKEN AND INFO
@@ -87,6 +91,8 @@ export const login = async (req, res, next) => {
                 name: user.name,
                 email: user.email,
                 role: user.role,
+                tenantId: user.tenantId,
+                tenantRole: user.tenantRole,
                 avatarUrl: user.avatarUrl,
             }
         });

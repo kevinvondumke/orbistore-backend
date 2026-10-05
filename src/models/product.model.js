@@ -72,7 +72,8 @@ productSchema.index(
     { unique: true }
 );
 productSchema.index(
-    { tenantId: 1, sku: 1 }, { unique: true, sparse: true }
+    { tenantId: 1, sku: 1 },
+    { unique: true, partialFilterExpression: { sku: { $type: 'string' } } }
 );
 productSchema.index(
     { tenantId: 1, isActive: 1, price: 1 }

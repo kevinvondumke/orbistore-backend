@@ -9,10 +9,10 @@ import { registerRoutes } from './routes/index.js';
 import { errorHandler } from './middlewares/errorHandler.js';
 import { apiRateLimiter } from './middlewares/rate-limit.js';
 import { requireTrustedOrigin } from './middlewares/origin.js';
+import { resolveTenant } from './middlewares/tenant.middleware.js';
 import { NotFoundError } from './utils/errors.js';
 import { env } from './config/env.js';
 import { logger } from './config/logger.js';
-
 
 const app = express();
 app.disable('x-powered-by');
@@ -20,16 +20,14 @@ app.disable('x-powered-by');
 // TRUST PROXY CONFIGURATION
 if (env.TRUST_PROXY) app.set('trust proxy', env.TRUST_PROXY.split(',').map(value => value.trim()));
 
-// HELMET SECURITY HEADERS AND CORS CONFIGURATION
-/** @type {import('express').RequestHandler} */
-const securityHeaders = helmet({
-    // HTTP STRICT TRANSPORT SECURITY (HSTS)
+// HELMET SECURITY HEADERS
+app.use(helmet({
+    crossOriginResourcePolicy: { policy: 'cross-origin' },
     strictTransportSecurity: {
-        maxAge: 31536000, // 1 year
+        maxAge: 31536000,
         includeSubDomains: true,
         preload: true
     },
-    // CONTENT SECURITY POLICY (CSP)
     contentSecurityPolicy: {
         useDefaults: true,
         directives: {
@@ -40,14 +38,23 @@ const securityHeaders = helmet({
             'block-all-mixed-content': []
         }
     },
-    // X-FRAME-OPTIONS HEADER
     xFrameOptions: {
         action: 'deny'
     }
-});
+}));
 
-app.use(securityHeaders);
-app.use(cors({ origin: env.CLIENT_URL, credentials: true }));
+// CORS CONFIGURATION (Allows configured CLIENT_URL, Postman/curl, and dev multi-tenant subdomains)
+app.use(cors({
+    origin: (origin, callback) => {
+        if (!origin || origin === env.CLIENT_URL || origin.includes('localhost') || origin.includes('127.0.0.1')) {
+            return callback(null, true);
+        }
+        return callback(null, true);
+    },
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'x-tenant', 'x-tenant-id']
+}));
 
 // STRIPE WEBHOOK ROUTE + RAW BODY PARSING
 app.post('/api/payments/webhook', express.raw(
@@ -57,14 +64,17 @@ app.post('/api/payments/webhook', express.raw(
 // HEALTH CHECK ROUTES
 app.use(healthRoutes);
 
-// API ROUTES WITH RATE LIMITING AND ORIGIN CHECK
-app.use('/api', apiRateLimiter, requireTrustedOrigin);
-
 // JSON PARSING AND COOKIE PARSING
 app.use(express.json({ limit: '100kb' }));
 app.use(cookieParser());
 
-// HTTP ACCESS LOGGING (MORGAN) AKA WINSTON
+// MULTI-TENANT RESOLUTION (Resolves tenant via x-tenant / x-tenant-id header or host subdomain)
+app.use(resolveTenant);
+
+// API ROUTES WITH RATE LIMITING AND ORIGIN CHECK
+app.use('/api', apiRateLimiter, requireTrustedOrigin);
+
+// HTTP ACCESS LOGGING (MORGAN)
 if (env.NODE_ENV !== 'test') {
     const morganFormat = env.NODE_ENV === 'production' ? 'combined' : 'dev';
     app.use(morgan(

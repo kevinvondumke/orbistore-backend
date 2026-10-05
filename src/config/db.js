@@ -1,5 +1,6 @@
 import mongoose from 'mongoose';
 import { env } from './env.js';
+import { logger } from './logger.js';
 import Tenant from '../models/tenant.model.js';
 import User from '../models/user.model.js';
 import Product from '../models/product.model.js';
@@ -47,7 +48,11 @@ export default async function connectDB() {
     // VERIFY REPLICA SET OR SHARDED CLUSTER
     const hello = await mongoose.connection.db.admin().command({ hello: 1 });
     if (!hello.setName && hello.msg !== 'isdbgrid') {
-        throw new Error('Checkout requires a MongoDB replica set or sharded cluster');
+        if (env.NODE_ENV === 'production') {
+            throw new Error('Checkout requires a MongoDB replica set or sharded cluster');
+        } else {
+            logger.warn('MongoDB is running in standalone mode. Multi-Doc transactions req a replica set in prod.');
+        }
     }
 
     await verifyUserEmails();

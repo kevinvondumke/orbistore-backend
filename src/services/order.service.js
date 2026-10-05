@@ -40,6 +40,9 @@ export async function createPricedOrder(userId, items, reservationMinutes = 30) 
             }
             pricedItems.push({
                 product: product._id,
+                productId: product._id,
+                name: product.name,
+                image: product.images?.[0] || '',
                 quantity,
                 priceMinor,
                 price: priceMinor / 100
@@ -54,6 +57,9 @@ export async function createPricedOrder(userId, items, reservationMinutes = 30) 
         // CREATE ORDER
         const [order] = await Order.create([{
             user: userId,
+            userId,
+            tenantId: items[0]?.tenantId || null,
+            orderNumber: `ORB-${Date.now().toString().slice(-6)}-${Math.floor(1000 + Math.random() * 9000)}`,
             items: pricedItems,
             totalMinor,
             total: totalMinor / 100,
