@@ -51,9 +51,30 @@ export const requireShopper = (req, res, next) => {
 /** @type {import('express').RequestHandler} */
 export const requireTenantAdmin = (req, res, next) => {
     if (!req.user) return next(new UnauthorizedError());
-    if (req.user.role !== 'merchant' && req.user.role !== 'admin') {
+
+    // PLATFORM ADMIN (SUPERADMIN) --> PLATFORM-WIDE ACCESS & AUTHORITY (ME)
+    if (req.user.role === 'admin') return next();
+
+    // MUST BE A MERCHANT
+    if (req.user.role !== 'merchant') {
         return next(new ForbiddenError('Merchant or Admin access required'));
     }
+
+    // MERCHANT MUST BELONG TO A TENANT (STORE)
+    if (!req.user.tenantId) {
+        return next(new ForbiddenError('Merchant is not assigned to any tenant store'));
+    }
+
+    // TENANT CONTEXT REQUEST --> MUST MATCH
+    const userTenantId = req.user.tenantId?.toString();
+    const requestedTenantId = req.tenantId?.toString();
+    if (requestedTenantId && userTenantId !== requestedTenantId) {
+        return next(new ForbiddenError('Forbidden: You do not have permission to manage this store'));
+    }
+
+    // req.tenantId <-- MERCHANT STORE
+    req.tenantId = req.user.tenantId;
+
     next();
 };
 

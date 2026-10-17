@@ -43,7 +43,7 @@ export const getProduct = async (req, res, next) => {
 /** @type {import('express').RequestHandler} */
 export const createProduct = async (req, res, next) => {
     try {
-        const tenantId = req.tenantId || req.user?.tenantId || req.body.tenantId;
+        const tenantId = req.user.tenantId;
         if (!tenantId && req.user.role !== 'admin') {
             throw new BadRequestError('Tenant context is required to create products.');
         }
@@ -61,7 +61,7 @@ export const updateProduct = async (req, res, next) => {
     try {
         const query = { _id: req.params.id };
         if (req.user && req.user.role !== 'admin') {
-            query.tenantId = req.tenantId || req.user?.tenantId;
+            query.tenantId = req.user.tenantId;
         }
 
         const product = await Product.findOneAndUpdate(
@@ -88,7 +88,7 @@ export const deleteProduct = async (req, res, next) => {
 
         const query = { _id: id };
         if (req.user && req.user.role !== 'admin') {
-            query.tenantId = req.tenantId || req.user?.tenantId;
+            query.tenantId = req.user.tenantId;
         }
 
         const product = await Product.findOneAndDelete(query);

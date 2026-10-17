@@ -49,7 +49,7 @@ export const getAllOrders = async (req, res, next) => {
         // SCOPE TO TENNAT FOR MERCHANTS || SUPER ADMIN SEES ALL
         const query = {};
         if (req.user.role === 'merchant') {
-            query.tenantId = req.tenantId || req.user.tenantId;
+            query.tenantId = req.user.tenantId;
         } else if (req.tenantId) {
             query.tenantId = req.tenantId;
         }
@@ -85,7 +85,7 @@ export const updateOrderStatus = async (req, res, next) => {
         });
 
         if (req.user.role !== 'admin') {
-            query.tenantId = req.tenantId || req.user.tenantId;
+            query.tenantId = req.user.tenantId;
         }
 
         // UPDATE ORDER STATUS IF VALID TRANSITION AND PAID
