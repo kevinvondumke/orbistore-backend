@@ -43,9 +43,10 @@ export const getProduct = async (req, res, next) => {
 /** @type {import('express').RequestHandler} */
 export const createProduct = async (req, res, next) => {
     try {
-        const tenantId = req.user.tenantId;
-        if (!tenantId && req.user.role !== 'admin') {
-            throw new BadRequestError('Tenant context is required to create products.');
+        const tenantId = req.user.role === 'admin' ? req.tenantId : req.user.tenantId;
+
+        if (!tenantId) {
+            throw new BadRequestError('A target store is required to create products.');
         }
 
         const product = await Product.create({ ...req.body, tenantId });

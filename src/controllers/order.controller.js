@@ -96,9 +96,12 @@ export const updateOrderStatus = async (req, res, next) => {
         );
 
         if (!order) {
-            const current = await Order.findById(req.params.id);
-            if (!current) throw new NotFoundError('Order not found');
-            if (current.paymentStatus === 'paid') return res.json(current);
+            const scope = {
+                _id: req.params.id,
+                ...(req.user.role !== 'admin' ? { tenantId: req.user.tenantId } : {})
+            };
+            const current = await Order.findOne(scope);
+            if (!current) throw new NotFoundError('Order not found');            
 
             throw new ConflictError('Invalid fulfillment transition or unpaid order');
         }

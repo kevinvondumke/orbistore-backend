@@ -73,6 +73,12 @@ const orderSchema = new mongoose.Schema({
         enum: ['pending', 'paid', 'failed', 'canceled', 'canceling', 'refunded'],
         default: 'pending'
     },
+    fulfillmentStatus: {
+        type: String,
+        enum: ['unfulfilled', 'processing', 'shipped', 'delivered'],
+        default: 'unfulfilled',
+        index: true
+    },
     paymentIntentId: {
         type: String,
         index: true
