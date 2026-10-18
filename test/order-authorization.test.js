@@ -38,7 +38,7 @@ function mockOrders(t, orders) {
         'findOneAndUpdate',
         async (filter, changes) => {
             assertScoped(filter);
-            
+
             const order = orders.find(item => matches(item, filter));
             if (!order) {
                 return null;
@@ -46,7 +46,7 @@ function mockOrders(t, orders) {
 
             Object.assign(order, changes.$set);
             return { ...order };
-        } 
+        }
     );
 
     const lookup = t.mock.method(
@@ -54,7 +54,7 @@ function mockOrders(t, orders) {
         'findOne',
         async filter => {
             assertScoped(filter);
-            
+
             const order = orders.find(item => matches(item, filter));
             return order ? { ...order } : null;
         }
@@ -87,7 +87,7 @@ async function invoke({
 
     let middlewareError;
 
-    requireTenantAdmin(req, { }, error => {
+    requireTenantAdmin(req, {}, error => {
         middlewareError = error;
     });
 
@@ -204,6 +204,137 @@ test('own-store paid order allows the next fulfillment transition', async t => {
     assert.equal(result.response.fulfillmentStatus, 'processing');
     assert.equal(update.mock.callCount(), 1);
     assert.equal(lookup.mock.callCount(), 0);
+});
+
+// TEST #5 | SEQUENTIAL STATE MACHINE PROGRESSION
+test('own-store paid order allows progresses through processing -> shipped -> delivered in sequence', async t => {
+    const ownOrder = {
+        _id: GRANDLATTE_ORDER_ID,
+        tenantId: GRANDLATTE_TENANT_ID,
+        paymentStatus: 'paid',
+        fulfillmentStatus: 'unfulfilled'
+    };
+
+    const { update, lookup } = mockOrders(t, [ownOrder]);
+
+    for (const nextStatus of ['processing', 'shipped', 'delivered']) {
+        const result = await invoke({
+            orderId: GRANDLATTE_ORDER_ID,
+            tenantId: GRANDLATTE_TENANT_ID,
+            fulfillmentStatus: nextStatus
+        });
+
+        assert.equal(result.error, undefined, `Transition to ${nextStatus} should succeed`);
+        assert.equal(result.response.fulfillmentStatus, nextStatus);
+        assert.equal(ownOrder.fulfillmentStatus, nextStatus);
+    }
+
+    assert.equal(update.mock.callCount(), 3);
+    assert.equal(lookup.mock.callCount(), 0);
+});
+
+// TEST #6 | UNPAID ORDER --> REJECTION
+test('own-store unpaid order rejects any fulfillment transition', async t => {
+    const unpaidOrder = {
+        _id: GRANDLATTE_ORDER_ID,
+        tenantId: GRANDLATTE_TENANT_ID,
+        paymentStatus: 'pending',
+        fulfillmentStatus: 'unfulfilled'
+    };
+
+    mockOrders(t, [unpaidOrder]);
+
+    const result = await invoke({
+        orderId: GRANDLATTE_ORDER_ID,
+        tenantId: GRANDLATTE_TENANT_ID,
+        fulfillmentStatus: 'processing'
+    });
+
+    assert.ok(result.error instanceof ConflictError);
+    assert.equal(result.error.statusCode, 409);
+    assert.equal(result.response, undefined);
+    assert.equal(unpaidOrder.fulfillmentStatus, 'unfulfilled');
+});
+
+// TEST #7 | REVERSED TRANSITION --> REJECTION
+test('own-store paid order rejects reversed fulfillment transition with 409 Conflict', async t => {
+    const deliveredOrder = {
+        _id: GRANDLATTE_ORDER_ID,
+        tenantId: GRANDLATTE_TENANT_ID,
+        paymentStatus: 'paid',
+        fulfillmentStatus: 'delivered'
+    };
+
+    mockOrders(t, [deliveredOrder]);
+
+    const result = await invoke({
+        orderId: GRANDLATTE_ORDER_ID,
+        tenantId: GRANDLATTE_TENANT_ID,
+        fulfillmentStatus: 'processing'
+    });
+
+    assert.ok(result.error instanceof ConflictError);
+    assert.equal(result.error.statusCode, 409);
+    assert.equal(result.response, undefined);
+    assert.equal(deliveredOrder.fulfillmentStatus, 'delivered');
+});
+
+// TEST #8 | IDEMPOTENT RETRY OF THE ALREADY-APPLIED TRANSITION | AKA 200 OK
+test('retrying an already-applied transition on a paid own-store order succeeds idempotently', async t => {
+    const alreadyProcessingOrder = {
+        _id: GRANDLATTE_ORDER_ID,
+        tenantId: GRANDLATTE_TENANT_ID,
+        paymentStatus: 'paid',
+        fulfillmentStatus: 'processing'
+    };
+
+    const { update, lookup } = mockOrders(t, [alreadyProcessingOrder]);
+
+    const result = await invoke({
+        orderId: GRANDLATTE_ORDER_ID,
+        tenantId: GRANDLATTE_TENANT_ID,
+        fulfillmentStatus: 'processing'
+    });
+
+    assert.equal(result.error, undefined);
+    assert.equal(result.response.fulfillmentStatus, 'processing');
+    assert.equal(update.mock.callCount(), 1);
+    assert.equal(lookup.mock.callCount(), 1);
+});
+
+// TEST #9 | REAL MONGOOSE SCHEMA PERSISTENCE + VALIDATION
+test('Order Mongoose schema persists fulfillmentStatus and enforces enum invariants', async t => {
+    const order = new Order({
+        tenantId: GRANDLATTE_TENANT_ID,
+        userId: MARCUS_ID,
+        orderNumber: 'ORB-TEST-001',
+        items: [{
+            productId: '507f1f77bcf86cd799439099',
+            name: 'Grand Blend',
+            prive: 18.5,
+            priceMinor: 1850,
+            quantity: 1
+        }],
+        total: 18.5,
+        totalMinor: 1850
+    });
+
+    // --> DEFAULT STATE: 'unfulfilled'
+    assert.equal(order.fulfillmentStatus, 'unfulfilled');
+    assert.equal(order.validateSync(), undefined);
+
+    // RETAINED AND VALIDATED --> TRANSITION
+    for (const status of ['processing', 'shipped', 'delivered']) {
+        order.set({ fulfillmentStatus: status });
+        assert.equal(order.fulfillmentStatus, status);
+        assert.equal(order.validateSync(), undefined);
+    };
+
+    // INVALID STATUS --> REJECTED 
+    order.set({ fulfillmentStatus: 'lost-in-transit' });
+    const validationError = order.validateSync();
+    assert.ok(validationError, 'Invalid fulfillmentStatus must fail schema validation');
+    assert.ok(validationError.errors.fulfillmentStatus);
 });
 
 // ALL TESTS
